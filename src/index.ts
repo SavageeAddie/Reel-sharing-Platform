@@ -107,6 +107,62 @@ export function shareReelToUser(reelId: string, userId: string): Result<string, 
 }
 
 $update;
+export function createReel(payload: ReelPayload): Result<Reel, string> {
+    // Validate payload
+    if (!payload.title || !payload.description) {
+        return Result.Err("Title and description are required");
+    }
+
+    const reel: Reel = {
+        id: uuidv4(),
+        title: payload.title,
+        description: payload.description,
+        createdAt: ic.time(),
+        updatedAt: Opt.None,
+        // Add other necessary fields here
+    };
+
+    reelStorage.insert(reel.id, reel);
+    return Result.Ok(reel);
+}
+
+$query;
+export function shareReelToUser(reelId: string, userId: string): Result<string, string> {
+    // Check if both reel and user exist
+    const reelResult = getReel(reelId);
+    const userResult = getUser(userId);
+
+    if (reelResult.isErr()) {
+        return reelResult;
+    }
+
+    if (userResult.isErr()) {
+        return userResult;
+    }
+
+    const reel = reelResult.unwrap();
+    const user = userResult.unwrap();
+
+    // Check if the reel is already shared with the user
+    if (user.reels && user.reels.includes(reelId)) {
+        return Result.Err(`Reel with id=${reelId} is already shared with the user`);
+    }
+
+    // Update the user record to include the shared reel
+    if (!user.reels) {
+        user.reels = [reelId];
+    } else {
+        user.reels.push(reelId);
+    }
+
+    // Update the user record in storage
+    userStorage.insert(userId, user);
+
+    return Result.Ok("Reel shared successfully");
+}
+
+
+$update;
 export function addUser(payload: UserPayload): Result<User, string> {
     const user: User = { id: uuidv4(), ...payload };
     userStorage.insert(user.id, user);
