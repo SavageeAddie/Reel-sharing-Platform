@@ -38,6 +38,11 @@ const userStorage = new StableBTreeMap<string, User>(1, 44, 1024);
 
 $update;
 export function createReel(payload: ReelPayload): Result<Reel, string> {
+    // Validate payload
+    if (!payload.title || !payload.description) {
+        return Result.Err('Title and description are required for creating a reel.');
+    }
+
     const reel: Reel = { id: uuidv4(), createdAt: ic.time(), updatedAt: Opt.None, ...payload };
     reelStorage.insert(reel.id, reel);
     return Result.Ok(reel);
@@ -45,10 +50,11 @@ export function createReel(payload: ReelPayload): Result<Reel, string> {
 
 $query;
 export function getReel(id: string): Result<Reel, string> {
-    return match(reelStorage.get(id), {
-        Some: (reel) => Result.Ok<Reel, string>(reel),
-        None: () => Result.Err<Reel, string>(`Reel with id=${id} not found`)
-    });
+    const reel = reelStorage.get(id);
+    if (!reel) {
+        return Result.Err(`Reel with id=${id} not found`);
+    }
+    return Result.Ok(reel);
 }
 
 $query;
@@ -58,56 +64,60 @@ export function getReels(): Result<Vec<Reel>, string> {
 
 $update;
 export function updateReel(id: string, payload: ReelPayload): Result<Reel, string> {
-    return match(reelStorage.get(id), {
-        Some: (reel) => {
-            const updatedReel: Reel = {...reel, ...payload, updatedAt: Opt.Some(ic.time())};
-            reelStorage.insert(reel.id, updatedReel);
-            return Result.Ok<Reel, string>(updatedReel);
-        },
-        None: () => Result.Err<Reel, string>(`Reel with id=${id} not found`)
-    });
+    // Validate payload
+    if (!payload.title || !payload.description) {
+        return Result.Err('Title and description are required for updating a reel.');
+    }
+
+    const reel = reelStorage.get(id);
+    if (!reel) {
+        return Result.Err(`Reel with id=${id} not found`);
+    }
+
+    const updatedReel: Reel = { ...reel, ...payload, updatedAt: Opt.Some(ic.time()) };
+    reelStorage.insert(reel.id, updatedReel);
+    return Result.Ok(updatedReel);
 }
 
 $update;
 export function deleteReel(id: string): Result<Reel, string> {
-    return match(reelStorage.remove(id), {
-        Some: (deletedReel) => Result.Ok<Reel, string>(deletedReel),
-        None: () => Result.Err<Reel, string>(`Reel with id=${id} not found`)
-    });
+    const deletedReel = reelStorage.remove(id);
+    if (!deletedReel) {
+        return Result.Err(`Reel with id=${id} not found`);
+    }
+    return Result.Ok(deletedReel);
 }
 
 $update;
 export function shareReelToUser(reelId: string, userId: string): Result<string, string> {
-    return match(reelStorage.get(reelId), {
-        Some: (reel) => {
-            return match(userStorage.get(userId), {
-                Some: (user) => {
-                    // Check if the reel is already shared with the user
-                    if (user.reels && user.reels.includes(reelId)) {
-                        return Result.Err<string, string>(`Reel with id=${reelId} is already shared with the user`);
-                    }
-                    
-                    // Update the user record to include the shared reel
-                    if (!user.reels) {
-                        user.reels = [reelId];
-                    } else {
-                        user.reels.push(reelId);
-                    }
-                    
-                    // Update the user record in storage
-                    userStorage.insert(userId, user);
-                    
-                    return Result.Ok<string, string>("reel shared successfully");
-                },
-                None: () => Result.Err<string, string>(`User with id=${userId} not found`)
-            });
-        },
-        None: () => Result.Err<string, string>(`Reel with id=${reelId} not found`)
-    });
+    const reel = reelStorage.get(reelId);
+    if (!reel) {
+        return Result.Err(`Reel with id=${reelId} not found`);
+    }
+
+    const user = userStorage.get(userId);
+    if (!user) {
+        return Result.Err(`User with id=${userId} not found`);
+    }
+
+    if (user.reels && user.reels.includes(reelId)) {
+        return Result.Err(`Reel with id=${reelId} is already shared with the user`);
+    }
+
+    user.reels = user.reels || [];
+    user.reels.push(reelId);
+    userStorage.insert(userId, user);
+
+    return Result.Ok("Reel shared successfully");
 }
 
 $update;
 export function addUser(payload: UserPayload): Result<User, string> {
+    // Validate payload
+    if (!payload.username || !payload.email) {
+        return Result.Err('Username and email are required for creating a user.');
+    }
+
     const user: User = { id: uuidv4(), ...payload };
     userStorage.insert(user.id, user);
     return Result.Ok(user);
@@ -115,10 +125,11 @@ export function addUser(payload: UserPayload): Result<User, string> {
 
 $query;
 export function getUser(id: string): Result<User, string> {
-    return match(userStorage.get(id), {
-        Some: (user) => Result.Ok<User, string>(user),
-        None: () => Result.Err<User, string>(`User with id=${id} not found`)
-    });
+    const user = userStorage.get(id);
+    if (!user) {
+        return Result.Err(`User with id=${id} not found`);
+    }
+    return Result.Ok(user);
 }
 
 $query;
@@ -128,10 +139,11 @@ export function getUsers(): Result<Vec<User>, string> {
 
 $update;
 export function deleteUser(id: string): Result<User, string> {
-    return match(userStorage.remove(id), {
-        Some: (deletedUser) => Result.Ok<User, string>(deletedUser),
-        None: () => Result.Err<User, string>(`User with id=${id} not found`)
-    });
+    const deletedUser = userStorage.remove(id);
+    if (!deletedUser) {
+        return Result.Err(`User with id=${id} not found`);
+    }
+    return Result.Ok(deletedUser);
 }
 
 // A workaround to make the uuid package work with Azle
